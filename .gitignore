@@ -1,0 +1,26 @@
+# Dataset files
+dataset/
+yolo/
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Model files (optional - uncomment if you don't want to track large model files)
+# saved_models/
+
+# Environment files
+.env
+.venv/
+env/
+venv/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

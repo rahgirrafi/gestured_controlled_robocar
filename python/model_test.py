@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import cv2
 
 # Load a pretrained YOLO11n model
-model = YOLO("/home/rahgirrafi/Gesture_Controlled_RoboCar/saved_models/2/best.pt")
+model = YOLO("/media/rafi/Data/Github/gestured_controlled_robocar_/saved_models/yolo/1.pt")
 
 
 # Run inference on the source
