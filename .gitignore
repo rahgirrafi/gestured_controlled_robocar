@@ -1,6 +1,6 @@
 # Dataset files
 dataset/
-yolo/
+
 # Python cache files
 __pycache__/
 *.pyc
