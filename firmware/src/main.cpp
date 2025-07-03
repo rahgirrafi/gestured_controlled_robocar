@@ -2,17 +2,28 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 
+void connectToWiFi();
+void connectToServer();
+void moveForward(int speed);
+void turnRight(int speed);
+void turnLeft(int speed);
+void stopMotors();
+
 // WiFi credentials
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "OptimusPrime";
+const char* password = "pikachuface";
 
 // Server configuration
-const char* serverIP = "192.168.1.50";  // Python server's IP
+const char* serverIP = "192.168.0.104";  // Python server's IP
 const int serverPort = 8080;
 
-// Car control pins
-const int motorPin = 25;
-const int steeringPin = 26;
+// Motor control pins for L298N
+const int ENA = 12 ;    // Left motor PWM speed control
+const int IN1 = 14 ;    // Left motor direction 1
+const int IN2 = 27 ;    // Left motor direction 2
+const int IN3 = 26 ;    // Right motor direction 1
+const int IN4 = 25 ;    // Right motor direction 2
+const int ENB = 33 ;    // Right motor PWM speed control
 
 // Reconnect settings
 const unsigned long RECONNECT_INTERVAL = 5000;  // 5 seconds
@@ -22,11 +33,17 @@ WiFiClient client;
 
 void setup() {
   Serial.begin(115200);
-  pinMode(motorPin, OUTPUT);
-  pinMode(steeringPin, OUTPUT);
+  
+  // Initialize motor control pins
+  pinMode(ENA, OUTPUT);
+  pinMode(ENB, OUTPUT);
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
   
   // Initial motor stop
-  analogWrite(motorPin, 0);
+  stopMotors();
   
   connectToWiFi();
   connectToServer();
@@ -56,28 +73,72 @@ void loop() {
     String speed = command.substring(0, commaIndex);
     String direction = command.substring(commaIndex + 1);
     
-    // Process speed command
-    if (speed == "25%") {
-      analogWrite(motorPin, 64);  // 25% duty cycle
-    } else if (speed == "50%") {
-      analogWrite(motorPin, 128);
-    } else if (speed == "75%") {
-      analogWrite(motorPin, 192);
-    } else if (speed == "100%") {
-      analogWrite(motorPin, 255);
-    } else {
-      analogWrite(motorPin, 0);  // Stop
-    }
+    // Convert speed to PWM value
+    int pwmSpeed = 0;
+    if (speed == "25%") pwmSpeed = 64;
+    else if (speed == "50%") pwmSpeed = 128;
+    else if (speed == "75%") pwmSpeed = 192;
+    else if (speed == "100%") pwmSpeed = 255;
     
-    // Process direction command
+    // Control motors based on direction
     if (direction == "Right") {
-      digitalWrite(steeringPin, HIGH);  // Example: HIGH for right
+      turnRight(pwmSpeed);
     } else if (direction == "Left") {
-      digitalWrite(steeringPin, LOW);   // Example: LOW for left
+      turnLeft(pwmSpeed);
     } else if (direction == "Straight") {
-      analogWrite(steeringPin, 127);    // Center position
+      moveForward(pwmSpeed);
+    } else {  // Stop or unknown direction
+      stopMotors();
     }
   }
+}
+
+// Motor control functions
+void moveForward(int speed) {
+  // Left motor forward
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, speed);
+  
+  // Right motor forward
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, speed);
+}
+
+void turnRight(int speed) {
+  // Left motor forward
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, speed);
+  
+  // Right motor backward or slower
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+  analogWrite(ENB, speed * 0.7);  // Adjust turn sharpness here
+}
+
+void turnLeft(int speed) {
+  // Left motor backward or slower
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  analogWrite(ENA, speed * 0.7);  // Adjust turn sharpness here
+  
+  // Right motor forward
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, speed);
+}
+
+void stopMotors() {
+  // Both motors stop
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, 0);
+  
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENB, 0);
 }
 
 void connectToWiFi() {
