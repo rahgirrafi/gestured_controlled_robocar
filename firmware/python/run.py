@@ -2,46 +2,64 @@ from ultralytics import YOLO
 import cv2
 import socket
 import time
+import threading
 
 # Load custom trained model
-model = YOLO("/run/media/rafi/Technical/Github/gestured_controlled_robocar/firmware/saved_models/yolo/1.pt")
+model = YOLO("/media/rafi/Data/Github/gestured_controlled_robocar_/saved_models/yolo/1.pt")
 
 # Define label mapping
 SPEED_LABELS = {'1': '25%', '2': '50%', '3': '75%', '4': '100%'}
 DIRECTION_LABELS = {'R': 'Right', 'S': 'Straight', 'L': 'Left'}
 
 # Network configuration
-ESP32_IP = "192.168.1.100"  # Replace with your ESP32's IP
+HOST_IP = "0.0.0.0"  # Listen on all interfaces
 PORT = 8080
-RECONNECT_DELAY = 2  # Seconds between connection attempts
 SEND_INTERVAL = 0.1  # Seconds between commands
 
 # Initialize state variables
 current_speed = "0%"
 current_direction = "Stop"
+clients = []
+client_lock = threading.Lock()
 last_send_time = time.time()
 
-# Create TCP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.settimeout(1.0)  # Set timeout for connection attempts
+# Create TCP server
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server_socket.bind((HOST_IP, PORT))
+server_socket.listen(5)
+print(f"Server listening on {HOST_IP}:{PORT}")
 
-# Connection management function
-def connect_to_esp():
+# Client handling thread
+def handle_client(client_socket):
+    print(f"New client connected: {client_socket.getpeername()}")
+    try:
+        while True:
+            # Check if client is still connected
+            try:
+                client_socket.send(b"ping")
+            except:
+                break
+            time.sleep(1)
+    except:
+        pass
+    
+    with client_lock:
+        if client_socket in clients:
+            clients.remove(client_socket)
+    print(f"Client disconnected: {client_socket.getpeername()}")
+    client_socket.close()
+
+# Accept connections in background
+def accept_connections():
     while True:
-        try:
-            print(f"Connecting to ESP32 at {ESP32_IP}:{PORT}...")
-            sock.connect((ESP32_IP, PORT))
-            print("Connection established!")
-            return True
-        except (socket.timeout, ConnectionRefusedError):
-            print(f"Connection failed. Retrying in {RECONNECT_DELAY} seconds...")
-            time.sleep(RECONNECT_DELAY)
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            time.sleep(RECONNECT_DELAY)
+        client_socket, addr = server_socket.accept()
+        with client_lock:
+            clients.append(client_socket)
+        threading.Thread(target=handle_client, args=(client_socket,), daemon=True).start()
 
-# Establish initial connection
-connect_to_esp()
+# Start connection acceptor
+threading.Thread(target=accept_connections, daemon=True).start()
 
 # Run webcam inference
 results = model(source=0, stream=True, verbose=False)  # Disable verbose output
@@ -71,33 +89,32 @@ try:
         if detected_directions:
             current_direction = DIRECTION_LABELS[max(detected_directions, key=detected_directions.get)]
         
-        # Send commands to ESP32 at fixed interval
+        # Send commands to all connected clients at fixed interval
         current_time = time.time()
         if current_time - last_send_time >= SEND_INTERVAL:
             # Format command: "SPEED,DIRECTION"
             command = f"{current_speed},{current_direction}\n"
             
-            try:
-                sock.sendall(command.encode())
-                print(f"Sent: {command.strip()}")
-            except (BrokenPipeError, ConnectionResetError):
-                print("Connection lost. Reconnecting...")
-                sock.close()
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(1.0)
-                connect_to_esp()
-            except Exception as e:
-                print(f"Send error: {e}")
+            with client_lock:
+                for client_socket in clients.copy():
+                    try:
+                        client_socket.sendall(command.encode())
+                        print(f"Sent to {client_socket.getpeername()}: {command.strip()}")
+                    except:
+                        print(f"Failed to send to {client_socket.getpeername()}")
+                        clients.remove(client_socket)
+                        client_socket.close()
             
             last_send_time = current_time
         
         # Prepare status display
         status = f"Speed: {current_speed}, Direction: {current_direction}"
+        status += f" | Clients: {len(clients)}"
         
         # Visualize results
         frame = result.plot()  # Get annotated frame
         cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.imshow('Gesture Control', frame)
+        cv2.imshow('Gesture Control Server', frame)
         
         # Exit on 'q' key press
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -108,6 +125,9 @@ except KeyboardInterrupt:
 
 finally:
     # Cleanup
-    sock.close()
+    server_socket.close()
+    with client_lock:
+        for client_socket in clients:
+            client_socket.close()
     cv2.destroyAllWindows()
-    print("Resources released")
+    print("Server shutdown complete")
