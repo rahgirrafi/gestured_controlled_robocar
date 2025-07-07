@@ -5,7 +5,7 @@ import time
 import threading
 
 # Load custom trained model
-model = YOLO("/media/rafi/Data/Github/gestured_controlled_robocar_/saved_models/yolo/1.pt")
+model = YOLO("/media/rafilappy/Data/Github/gestured_controlled_robocar/firmware/saved_models/yolo/1.pt")
 
 # Define label mapping
 SPEED_LABELS = {'1': '25%', '2': '50%', '3': '75%', '4': '100%'}

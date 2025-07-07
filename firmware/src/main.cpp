@@ -106,7 +106,7 @@ void moveForward(int speed) {
   analogWrite(ENB, speed);
 }
 
-void turnRight(int speed) {
+void turnLeft(int speed) {
   // Left motor forward
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
@@ -115,14 +115,14 @@ void turnRight(int speed) {
   // Right motor backward or slower
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, HIGH);
-  analogWrite(ENB, speed * 0.7);  // Adjust turn sharpness here
+  analogWrite(ENB, speed );  // Adjust turn sharpness here
 }
 
-void turnLeft(int speed) {
+void turnRight(int speed) {
   // Left motor backward or slower
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
-  analogWrite(ENA, speed * 0.7);  // Adjust turn sharpness here
+  analogWrite(ENA, speed);  // Adjust turn sharpness here
   
   // Right motor forward
   digitalWrite(IN3, HIGH);
